@@ -1,21 +1,46 @@
-import { GraphQLID, GraphQLInt, GraphQLString, graphQLListFactory } from './typedGqlTypes'
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import {
+  GraphQLID,
+  GraphQLInt,
+  GraphQLString,
+  circularDependencyTsHack,
+  graphQLListFactory,
+  graphQLScalarTypeFactory,
+} from './typedGqlTypes'
 import { GraphQLObjectType, GraphQLSchema } from 'graphql'
-import { addFriendMutation } from './mutations'
+import { addAstronautMutation } from './mutations'
 import { graphQLNonNullFactory, graphQLObjectTypeFactory, graphQLSimpleEnum } from './typedGqlTypes'
 import { listPaginationArgs, wrapPaginationList } from './gqlPagination'
-//// data
+
+const oddValue = (value: number) => (value % 2 === 1 ? value : null)
+
+// ## data
+const OddType = graphQLScalarTypeFactory<number>({
+  name: 'Odd',
+  serialize: oddValue,
+  parseValue: oddValue,
+  parseLiteral(ast) {
+    // @ts-expect-error
+    if (ast.kind === Kind.INT) {
+      // @ts-expect-error
+      return oddValue(parseInt(ast.value, 10))
+    }
+    return null
+  },
+})
 
 export const gqlAppData = {
-  id: '1',
-  firstName: 'Jakub',
-  lastName: 'Švehla',
+  id: 'R:1',
+  firstName: 'John',
+  lastName: 'Wick',
   role: undefined,
-  friends: {
-    totalCount: 10,
+  cosmonauts: {
+    totalCount: 3,
     items: Array.from({ length: 3 }, (_, index) => ({
-      id: `User${index}`,
+      id: `C:${index}`,
       firstName: `${index} firstName`,
       lastName: `${index} lastName`,
+      index,
     })),
   },
 }
@@ -27,12 +52,21 @@ const authHOF = <Args extends any[], T>(fn: (...args: Args) => T) => (...args: A
 
   return fn(...args)
 }
+// // auth from context monkey patch
+// const authHOF = <T>(config: T) => <Args extends any[]>(
+//   fn: (parent: Args[0], args: Args[1], context: T) => any
+// ) => (...args: Args) => {
+//   // throw error if user has no access
+//   console.info(config)
 
-// shapes
+//   return fn(parent, args, config)
+// }
 
-const UserObject = graphQLObjectTypeFactory(
+// ## Gql Types
+
+export const CosmonautType = graphQLObjectTypeFactory(
   {
-    name: 'User',
+    name: 'Cosmonaut',
     fields: () => ({
       id: {
         type: graphQLNonNullFactory(GraphQLID),
@@ -49,105 +83,100 @@ const UserObject = graphQLObjectTypeFactory(
       fullName: {
         args: {
           prefix: {
-            type: graphQLNonNullFactory(graphQLListFactory(graphQLNonNullFactory(GraphQLString))),
+            type: graphQLListFactory(graphQLNonNullFactory(GraphQLString)),
           },
         },
         type: GraphQLString,
       },
-      // TODO: add runtime circular dependencies
-      // user2: {
-      //   type: UserObject2,
-      // },
+      index: {
+        type: GraphQLInt,
+      },
+      showOnlyOddIds: {
+        type: OddType,
+      },
+      friends: {
+        type: wrapPaginationList(
+          'friends',
+          graphQLListFactory(circularDependencyTsHack(() => CosmonautType))
+        ),
+      },
     }),
   },
   {
     id: {
-      resolve: parent => `Friend:${parent.id}`,
+      resolve: parent => `Cosmonaut:${parent.id}`,
     },
     fullName: {
       resolve: (parent, args) => `${args.prefix.join('-')} ${parent.firstName} ${parent.lastName}`,
     },
+    showOnlyOddIds: {
+      resolve: parent => parent.index!,
+    },
+    friends: {
+      // it just returns mock data
+      resolve: () => [{ id: '1' }] as any,
+    },
   }
 )
 
-const roleEnum = Object.freeze({
-  admin: 'admin',
-  developer: 'developer',
+const engineTypeEnum = Object.freeze({
+  SolidFuel: 'SolidFuel',
+  LiquidFuel: 'LiquidFuel',
+  Ion: 'Ion',
+  Plasma: 'Plasma',
 } as const)
 
-const RoleType = graphQLSimpleEnum('enumType', roleEnum)
+const EngineType = graphQLSimpleEnum('EngineTypeEnum', engineTypeEnum)
 
-export const MeType = graphQLObjectTypeFactory(
+export const RocketType = graphQLObjectTypeFactory(
   {
-    name: 'Me',
+    name: 'Rocket',
     fields: () => ({
       id: {
         type: graphQLNonNullFactory(GraphQLID),
       },
-      firstName: {
-        type: GraphQLString,
-      },
-      lastName: {
-        type: GraphQLString,
-      },
       name: {
         type: GraphQLString,
       },
-      role: {
-        type: RoleType,
+      engineType: {
+        type: EngineType,
       },
-      friends: {
+      cosmonauts: {
         args: {
           pagination: {
-            type: listPaginationArgs('users'),
+            type: listPaginationArgs('cosmonauts'),
           },
         },
-        type: wrapPaginationList('users', graphQLNonNullFactory(UserObject)),
+        type: wrapPaginationList('cosmonauts', graphQLNonNullFactory(CosmonautType)),
       },
     }),
   },
   {
     id: {
-      resolve: parent => `Me:${parent.id}`,
+      resolve: parent => `Rocket:${parent.id}`,
     },
-    name: {
-      resolve: parent => `${parent.firstName} ${parent.lastName}`,
-    },
-    friends: {
-      resolve: authHOF((parent, args) => {
+    cosmonauts: {
+      // resolve: authHOF({ x: 'config' as const })((parent, args, context) => {
+      resolve: (parent, args, context) => {
         const offset = args.pagination.offset ?? 0
         return {
-          totalCount: parent.friends?.items?.length ?? 0,
-          items: parent.friends?.items?.slice(offset, offset + args.pagination.limit),
+          totalCount: parent.cosmonauts?.items?.length ?? 0,
+          items: parent.cosmonauts?.items?.slice(offset, offset + args.pagination.limit),
         }
-      }),
+      },
     },
   }
 )
 
-const me = {
-  id: '1',
-  firstName: 'Jakub',
-  lastName: 'Švehla',
-  age: 1,
-  role: roleEnum.admin,
-  friends: {
-    items: Array.from({ length: 10 }, (_, index) => ({
-      id: index,
-      firstName: `${index} firstName`,
-      lastName: `${index} lastName`,
-    })),
-  },
-}
+// ## schema
 
-// TODO: add mutations POC
 const schema = new GraphQLSchema({
   query: new GraphQLObjectType({
     name: 'RootQueryType',
     // @ts-ignore
     fields: () => ({
-      me: {
-        type: MeType,
+      currentRocket: {
+        type: RocketType,
         resolve() {
           return gqlAppData
         },
@@ -158,7 +187,7 @@ const schema = new GraphQLSchema({
     name: 'RootMutationType',
     // @ts-ignore
     fields: () => ({
-      addFriendMutation: addFriendMutation(),
+      addAstronautMutation: addAstronautMutation(),
     }),
   }),
 })

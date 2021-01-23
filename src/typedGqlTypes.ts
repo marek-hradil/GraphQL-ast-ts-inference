@@ -4,6 +4,7 @@ import {
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
+  GraphQLScalarType,
   GraphQLBoolean as _GraphQLBoolean,
   GraphQLFloat as _GraphQLFloat,
   GraphQLID as _GraphQLID,
@@ -17,8 +18,8 @@ export const GraphQLString = (_GraphQLString as any) as string | undefined | nul
 export const GraphQLBoolean = (_GraphQLBoolean as any) as boolean | undefined | null
 export const GraphQLFloat = (_GraphQLFloat as any) as number | undefined | null
 
-type GetReturnTypeIfFunction<T> = T extends () => any ? ReturnType<T> : T
-type WrapMaybePromise<T> = Promise<T> | T
+type ReturnTypeIfFn<T> = T extends (...args: any[]) => any ? ReturnType<T> : T
+type MaybePromise<T> = Promise<T> | T
 
 export const graphQLNonNullFactory = <T>(arg: T | null | undefined): T =>
   // @ts-expect-error
@@ -29,61 +30,35 @@ export const graphQLListFactory = <T>(arg: T): T[] =>
   new GraphQLList(arg)
 
 export const graphQLInputObjectTypeFactory = <
-  Data extends {
-    name: string
-    fields: () => Record<string, { type: any }>
-  }
->(
-  gqlShape: Data
-):
-  | {
-      [K in keyof ReturnType<Data['fields']>]: GetReturnTypeIfFunction<
-        ReturnType<Data['fields']>[K]['type']
-      >
-    }
-  | undefined =>
+  Fields extends Record<string, { type: any }>
+>(gqlShape: {
+  name: string
+  fields: () => Fields
+}): { [K in keyof Fields]: ReturnTypeIfFn<Fields[K]['type']> } | undefined =>
   // @ts-expect-error
   new GraphQLInputObjectType(gqlShape)
 
-export const graphQLObjectTypeFactory = <
-  Data extends {
+export const graphQLObjectTypeFactory = <Fields extends Record<string, { type: any; args?: any }>>(
+  gqlShape: {
     name: string
     interfaces?: any[]
     isTypeOf?: any
-    fields: () => Record<
-      string,
-      {
-        type: any
-        args?: any
-      }
-    >
-  }
->(
-  gqlShape: Data,
+    fields: () => Fields
+  },
   resolvers?: {
-    [K in keyof ReturnType<Data['fields']>]?: {
+    [K in keyof Fields]?: {
       resolve: (
         parent: {
-          [NK in keyof ReturnType<Data['fields']>]?: GetReturnTypeIfFunction<
-            ReturnType<Data['fields']>[NK]['type']
-          >
+          [NestedKey in keyof Fields]?: ReturnTypeIfFn<Fields[NestedKey]['type']>
         },
         args: {
-          [AK in keyof ReturnType<Data['fields']>[K]['args']]: GetReturnTypeIfFunction<
-            ReturnType<Data['fields']>[K]['args'][AK]['type']
-          >
+          [ArgKey in keyof Fields[K]['args']]: ReturnTypeIfFn<Fields[K]['args'][ArgKey]['type']>
         },
         context: any
-      ) => WrapMaybePromise<ReturnType<typeof gqlShape['fields']>[K]['type']>
+      ) => MaybePromise<Fields[K]['type']>
     }
   }
-):
-  | {
-      [K in keyof ReturnType<Data['fields']>]?: GetReturnTypeIfFunction<
-        ReturnType<Data['fields']>[K]['type']
-      >
-    }
-  | undefined => {
+): { [K in keyof Fields]?: Fields[K]['type'] } | undefined => {
   const a = new GraphQLObjectType({
     ...gqlShape,
     fields: () => {
@@ -150,4 +125,15 @@ export const gqlMutation = <
     ...config,
     resolve: (a: undefined, ...rest: Parameters<typeof resolve>) => resolve(...rest),
   }
+}
+
+export const graphQLScalarTypeFactory = <T>(
+  config: ConstructorParameters<typeof GraphQLScalarType>[0]
+): T =>
+  // @ts-expect-error
+  new GraphQLScalarType(config)
+
+export const circularDependencyTsHack = <T>(arg: T): (() => T) => {
+  const shittyCode = arg as any
+  return shittyCode()
 }

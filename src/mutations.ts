@@ -1,17 +1,17 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import { CosmonautType, gqlAppData } from './gql'
 import {
   GraphQLString,
   gqlMutation,
   graphQLInputObjectTypeFactory,
   graphQLNonNullFactory,
 } from './typedGqlTypes'
-import { MeType, gqlAppData } from './gql'
 
 // async circular dependency
-export const addFriendMutation = () =>
+export const addAstronautMutation = () =>
   gqlMutation(
     {
-      type: MeType,
+      type: CosmonautType,
       args: {
         input: {
           type: graphQLNonNullFactory(
@@ -31,12 +31,15 @@ export const addFriendMutation = () =>
       },
     },
     args => {
-      gqlAppData.friends.items.push({
+      const cosmonautToAdd = {
         id: `${Math.random()}`,
         firstName: args.input.firstName,
         lastName: args.input.lastName,
-      })
+        index: gqlAppData.cosmonauts.items.length,
+      }
 
-      return gqlAppData
+      gqlAppData.cosmonauts.items.push(cosmonautToAdd)
+
+      return cosmonautToAdd
     }
   )

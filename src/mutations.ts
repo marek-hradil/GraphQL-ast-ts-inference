@@ -3,8 +3,8 @@ import { CosmonautType, gqlAppData } from './gql'
 import {
   GraphQLString,
   gqlMutation,
-  graphQLInputObjectTypeFactory,
-  graphQLNonNullFactory,
+  graphQLInputObjectType,
+  graphQLNonNull,
 } from './typedGqlTypes'
 
 // async circular dependency
@@ -14,15 +14,15 @@ export const addAstronautMutation = () =>
       type: CosmonautType,
       args: {
         input: {
-          type: graphQLNonNullFactory(
-            graphQLInputObjectTypeFactory({
+          type: graphQLNonNull(
+            graphQLInputObjectType({
               name: 'logMutationInput',
               fields: () => ({
                 firstName: {
-                  type: graphQLNonNullFactory(GraphQLString),
+                  type: graphQLNonNull(GraphQLString),
                 },
                 lastName: {
-                  type: graphQLNonNullFactory(GraphQLString),
+                  type: graphQLNonNull(GraphQLString),
                 },
               }),
             })

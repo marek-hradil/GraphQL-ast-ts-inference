@@ -4,18 +4,18 @@ import {
   GraphQLInt,
   GraphQLString,
   circularDependencyTsHack,
-  graphQLListFactory,
-  graphQLScalarTypeFactory,
+  graphQLList,
+  graphQLScalarType,
 } from './typedGqlTypes'
 import { GraphQLObjectType, GraphQLSchema } from 'graphql'
 import { addAstronautMutation } from './mutations'
-import { graphQLNonNullFactory, graphQLObjectTypeFactory, graphQLSimpleEnum } from './typedGqlTypes'
+import { graphQLNonNull, graphQLObjectType, graphQLSimpleEnum } from './typedGqlTypes'
 import { listPaginationArgs, wrapPaginationList } from './gqlPagination'
 
 const oddValue = (value: number) => (value % 2 === 1 ? value : null)
 
 // ## data
-const OddType = graphQLScalarTypeFactory<number>({
+const OddType = graphQLScalarType<number>({
   name: 'Odd',
   serialize: oddValue,
   parseValue: oddValue,
@@ -64,12 +64,12 @@ const authHOF = <Args extends any[], T>(fn: (...args: Args) => T) => (...args: A
 
 // ## Gql Types
 
-export const CosmonautType = graphQLObjectTypeFactory(
+export const CosmonautType = graphQLObjectType(
   {
     name: 'Cosmonaut',
     fields: () => ({
       id: {
-        type: graphQLNonNullFactory(GraphQLID),
+        type: graphQLNonNull(GraphQLID),
       },
       firstName: {
         type: GraphQLString,
@@ -83,7 +83,7 @@ export const CosmonautType = graphQLObjectTypeFactory(
       fullName: {
         args: {
           prefix: {
-            type: graphQLListFactory(graphQLNonNullFactory(GraphQLString)),
+            type: graphQLList(graphQLNonNull(GraphQLString)),
           },
         },
         type: GraphQLString,
@@ -95,10 +95,7 @@ export const CosmonautType = graphQLObjectTypeFactory(
         type: OddType,
       },
       friends: {
-        type: wrapPaginationList(
-          'friends',
-          graphQLListFactory(circularDependencyTsHack(() => CosmonautType))
-        ),
+        type: circularDependencyTsHack(() => wrapPaginationList('cosmonauts', CosmonautType)),
       },
     }),
   },
@@ -128,12 +125,12 @@ const engineTypeEnum = Object.freeze({
 
 const EngineType = graphQLSimpleEnum('EngineTypeEnum', engineTypeEnum)
 
-export const RocketType = graphQLObjectTypeFactory(
+export const RocketType = graphQLObjectType(
   {
     name: 'Rocket',
     fields: () => ({
       id: {
-        type: graphQLNonNullFactory(GraphQLID),
+        type: graphQLNonNull(GraphQLID),
       },
       name: {
         type: GraphQLString,
@@ -147,7 +144,7 @@ export const RocketType = graphQLObjectTypeFactory(
             type: listPaginationArgs('cosmonauts'),
           },
         },
-        type: wrapPaginationList('cosmonauts', graphQLNonNullFactory(CosmonautType)),
+        type: wrapPaginationList('cosmonauts', graphQLNonNull(CosmonautType)),
       },
     }),
   },

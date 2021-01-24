@@ -1,35 +1,35 @@
 import {
   GraphQLInt,
-  graphQLInputObjectTypeFactory,
-  graphQLListFactory,
-  graphQLNonNullFactory,
-  graphQLObjectTypeFactory,
+  graphQLInputObjectType,
+  graphQLList,
+  graphQLNonNull,
+  graphQLObjectType,
 } from './typedGqlTypes'
 
 export const listPaginationArgs = (name: string) =>
-  graphQLNonNullFactory(
-    graphQLInputObjectTypeFactory({
+  graphQLNonNull(
+    graphQLInputObjectType({
       name: `${name}_pagination`,
       fields: () => ({
         offset: {
-          type: graphQLNonNullFactory(GraphQLInt),
+          type: graphQLNonNull(GraphQLInt),
         },
         limit: {
-          type: graphQLNonNullFactory(GraphQLInt),
+          type: graphQLNonNull(GraphQLInt),
         },
       }),
     })
   )
 
 export const wrapPaginationList = <T>(name: string, type: T) =>
-  graphQLObjectTypeFactory({
+  graphQLObjectType({
     name: `connection_${name}`,
     fields: () => ({
       totalCount: {
         type: GraphQLInt,
       },
       items: {
-        type: graphQLListFactory(type),
+        type: graphQLList(type),
       },
     }),
   })

@@ -19,26 +19,24 @@ export const GraphQLBoolean = (_GraphQLBoolean as any) as boolean | undefined | 
 export const GraphQLFloat = (_GraphQLFloat as any) as number | undefined | null
 
 type ReturnTypeIfFn<T> = T extends (...args: any[]) => any ? ReturnType<T> : T
-type MaybePromise<T> = Promise<T> | T
+// type MaybePromise<T> = Promise<T> | T
 
-export const graphQLNonNullFactory = <T>(arg: T | null | undefined): T =>
+export const graphQLNonNull = <T>(arg: T | null | undefined): T =>
   // @ts-expect-error
   new GraphQLNonNull(arg)
 
-export const graphQLListFactory = <T>(arg: T): T[] =>
+export const graphQLList = <T>(arg: T): T[] =>
   // @ts-expect-error
   new GraphQLList(arg)
 
-export const graphQLInputObjectTypeFactory = <
-  Fields extends Record<string, { type: any }>
->(gqlShape: {
+export const graphQLInputObjectType = <Fields extends Record<string, { type: any }>>(gqlShape: {
   name: string
   fields: () => Fields
 }): { [K in keyof Fields]: ReturnTypeIfFn<Fields[K]['type']> } | undefined =>
   // @ts-expect-error
   new GraphQLInputObjectType(gqlShape)
 
-export const graphQLObjectTypeFactory = <Fields extends Record<string, { type: any; args?: any }>>(
+export const graphQLObjectType = <Fields extends Record<string, { type: any; args?: any }>>(
   gqlShape: {
     name: string
     interfaces?: any[]
@@ -52,13 +50,16 @@ export const graphQLObjectTypeFactory = <Fields extends Record<string, { type: a
           [NestedKey in keyof Fields]?: ReturnTypeIfFn<Fields[NestedKey]['type']>
         },
         args: {
-          [ArgKey in keyof Fields[K]['args']]: ReturnTypeIfFn<Fields[K]['args'][ArgKey]['type']>
+          [ArgKey in keyof Fields[K]['args']]: ReturnType<
+            typeof gqlShape['fields']
+          >[K]['args'][ArgKey]['type']
         },
         context: any
-      ) => MaybePromise<Fields[K]['type']>
+      ) => any
+      // ) => MaybePromise<ReturnTypeIfFn<Fields[K]['type']>>
     }
   }
-): { [K in keyof Fields]?: Fields[K]['type'] } | undefined => {
+): { [K in keyof Fields]?: ReturnTypeIfFn<Fields[K]['type']> } | undefined => {
   const a = new GraphQLObjectType({
     ...gqlShape,
     fields: () => {
@@ -94,10 +95,10 @@ export const graphQLSimpleEnum = <T extends string>(
     [K in T]: { value: K }
   }
 
-  return graphQLEnumTypeFactory(typeName, simplifiedObj)
+  return graphQLEnumType(typeName, simplifiedObj)
 }
 
-export const graphQLEnumTypeFactory = <T extends string>(
+export const graphQLEnumType = <T extends string>(
   name: string,
   values: Record<T, { value: any }>
 ): T | undefined =>
@@ -127,13 +128,14 @@ export const gqlMutation = <
   }
 }
 
-export const graphQLScalarTypeFactory = <T>(
+export const graphQLScalarType = <T>(
   config: ConstructorParameters<typeof GraphQLScalarType>[0]
 ): T =>
   // @ts-expect-error
   new GraphQLScalarType(config)
 
-export const circularDependencyTsHack = <T>(arg: T): (() => T) => {
+// is used to be resolved by `ReturnTypeIfFn<...>` generic
+export const circularDependencyTsHack = <T>(arg: T): T => {
   const shittyCode = arg as any
   return shittyCode()
 }

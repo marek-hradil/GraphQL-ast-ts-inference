@@ -12,6 +12,8 @@ import {
   GraphQLString as _GraphQLString,
 } from 'graphql'
 
+// TODO: add context as global interface to keep update it by anyone?
+
 export const GraphQLInt = (_GraphQLInt as any) as number | undefined | null
 export const GraphQLID = (_GraphQLID as any) as string | undefined | null
 export const GraphQLString = (_GraphQLString as any) as string | undefined | null
@@ -19,7 +21,7 @@ export const GraphQLBoolean = (_GraphQLBoolean as any) as boolean | undefined | 
 export const GraphQLFloat = (_GraphQLFloat as any) as number | undefined | null
 
 type ReturnTypeIfFn<T> = T extends (...args: any[]) => any ? ReturnType<T> : T
-// type MaybePromise<T> = Promise<T> | T
+type MaybePromise<T> = Promise<T> | T
 
 export const graphQLNonNull = <T>(arg: T | null | undefined): T =>
   // @ts-expect-error
@@ -32,9 +34,36 @@ export const graphQLList = <T>(arg: T): T[] =>
 export const graphQLInputObjectType = <Fields extends Record<string, { type: any }>>(gqlShape: {
   name: string
   fields: () => Fields
-}): { [K in keyof Fields]: ReturnTypeIfFn<Fields[K]['type']> } | undefined =>
+}): { [FieldKey in keyof Fields]: ReturnTypeIfFn<Fields[FieldKey]['type']> } | undefined =>
   // @ts-expect-error
   new GraphQLInputObjectType(gqlShape)
+
+export const graphqlSubQueryType = <Fields extends Record<string, { type: any; args?: any }>>(
+  gqlFields: Fields,
+  resolvers: {
+    [FieldKey in keyof Fields]: {
+      resolve: (
+        args: {
+          [ArgKey in keyof Fields[FieldKey]['args']]: Fields[FieldKey]['args'][ArgKey]['type']
+        },
+        context: any
+      ) => MaybePromise<Fields[FieldKey]['type']>
+    }
+  }
+) => {
+  const fieldsWithResolvers: Record<string, any> = {}
+
+  for (const key in gqlFields) {
+    fieldsWithResolvers[key] = {
+      ...gqlFields[key],
+      resolve: (_parent: any, args: any, context: any) => resolvers?.[key]?.resolve(args, context),
+    }
+  }
+
+  return fieldsWithResolvers as any
+}
+
+type HackToOmitFnCircularDepType<T> = T extends (...args: any[]) => any ? any : T
 
 export const graphQLObjectType = <Fields extends Record<string, { type: any; args?: any }>>(
   gqlShape: {
@@ -44,22 +73,22 @@ export const graphQLObjectType = <Fields extends Record<string, { type: any; arg
     fields: () => Fields
   },
   resolvers?: {
-    [K in keyof Fields]?: {
+    [FieldKey in keyof Fields]?: {
       resolve: (
         parent: {
           [NestedKey in keyof Fields]?: ReturnTypeIfFn<Fields[NestedKey]['type']>
         },
         args: {
-          [ArgKey in keyof Fields[K]['args']]: ReturnType<
-            typeof gqlShape['fields']
-          >[K]['args'][ArgKey]['type']
+          [ArgKey in keyof Fields[FieldKey]['args']]: ReturnTypeIfFn<
+            Fields[FieldKey]['args'][ArgKey]['type']
+          >
         },
         context: any
-      ) => any
-      // ) => MaybePromise<ReturnTypeIfFn<Fields[K]['type']>>
+      ) => MaybePromise<HackToOmitFnCircularDepType<Fields[FieldKey]['type']>>
     }
-  }
-): { [K in keyof Fields]?: ReturnTypeIfFn<Fields[K]['type']> } | undefined => {
+  },
+  opts?: { globalResolverDecorator?: (...args: any[]) => any }
+): { [FieldKey in keyof Fields]?: ReturnTypeIfFn<Fields[FieldKey]['type']> } | undefined => {
   const a = new GraphQLObjectType({
     ...gqlShape,
     fields: () => {
@@ -70,10 +99,11 @@ export const graphQLObjectType = <Fields extends Record<string, { type: any; arg
       for (const key in gqlFields) {
         fieldsWithResolvers[key] = {
           ...gqlFields[key],
-          // TODO:
-          // > add support for recursive
-          // > check if type is fn and get return value
-          resolve: resolvers?.[key]?.resolve,
+          resolve: opts?.globalResolverDecorator
+            ? opts.globalResolverDecorator(
+                resolvers?.[key]?.resolve ?? ((parent: any) => parent[key])
+              )
+            : resolvers?.[key]?.resolve,
         }
       }
 
@@ -118,7 +148,7 @@ export const gqlMutation = <
 >(
   config: Config,
   resolve: (
-    args: { [K in keyof Config['args']]: Config['args'][K]['type'] },
+    args: { [ArgKey in keyof Config['args']]: Config['args'][ArgKey]['type'] },
     context: any
   ) => Config['type']
 ) => {

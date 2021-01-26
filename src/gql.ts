@@ -6,11 +6,13 @@ import {
   circularDependencyTsHack,
   graphQLList,
   graphQLScalarType,
+  graphqlSubQueryType,
 } from './typedGqlTypes'
 import { GraphQLObjectType, GraphQLSchema } from 'graphql'
 import { addAstronautMutation } from './mutations'
 import { graphQLNonNull, graphQLObjectType, graphQLSimpleEnum } from './typedGqlTypes'
 import { listPaginationArgs, wrapPaginationList } from './gqlPagination'
+import { pipe } from 'ramda'
 
 const oddValue = (value: number) => (value % 2 === 1 ? value : null)
 
@@ -45,29 +47,23 @@ export const gqlAppData = {
   },
 }
 
-const authHOF = <Args extends any[], T>(fn: (...args: Args) => T) => (...args: Args) => {
-  // TODO: auth from context monkey patch
-  // TODO: context
-  // args[3]
+const authDecorator = (_config: { auth: string }) => <Parent, Args, T>(
+  fn: (p: Parent, args: Args, context: any) => T
+) => (p: Parent, args: Args, context: any) => {
+  if (_config.auth === 'developer') {
+    throw new Error('developer has no access')
+  }
 
-  return fn(...args)
+  return fn(p, args, context)
 }
-// // auth from context monkey patch
-// const authHOF = <T>(config: T) => <Args extends any[]>(
-//   fn: (parent: Args[0], args: Args[1], context: T) => any
-// ) => (...args: Args) => {
-//   // throw error if user has no access
-//   console.info(config)
-
-//   return fn(parent, args, config)
-// }
-
-// ## Gql Types
 
 export const CosmonautType = graphQLObjectType(
   {
     name: 'Cosmonaut',
     fields: () => ({
+      peta: {
+        type: graphQLNonNull(GraphQLString),
+      },
       id: {
         type: graphQLNonNull(GraphQLID),
       },
@@ -95,7 +91,9 @@ export const CosmonautType = graphQLObjectType(
         type: OddType,
       },
       friends: {
-        type: circularDependencyTsHack(() => wrapPaginationList('cosmonauts', CosmonautType)),
+        type: circularDependencyTsHack(() =>
+          wrapPaginationList('friends_cosmonauts', CosmonautType)
+        ),
       },
     }),
   },
@@ -110,9 +108,15 @@ export const CosmonautType = graphQLObjectType(
       resolve: parent => parent.index!,
     },
     friends: {
-      // it just returns mock data
-      resolve: () => [{ id: '1' }] as any,
+      resolve: () => [{ id: '1' }],
     },
+  },
+  {
+    globalResolverDecorator: pipe(
+      authDecorator({ auth: '1111' }),
+      authDecorator({ auth: 'xxx-developer' }),
+      authDecorator({ auth: '3' })
+    ),
   }
 )
 
@@ -141,7 +145,7 @@ export const RocketType = graphQLObjectType(
       cosmonauts: {
         args: {
           pagination: {
-            type: listPaginationArgs('cosmonauts'),
+            type: listPaginationArgs('arg_cosmonauts'),
           },
         },
         type: wrapPaginationList('cosmonauts', graphQLNonNull(CosmonautType)),
@@ -153,31 +157,44 @@ export const RocketType = graphQLObjectType(
       resolve: parent => `Rocket:${parent.id}`,
     },
     cosmonauts: {
-      // resolve: authHOF({ x: 'config' as const })((parent, args, context) => {
-      resolve: (parent, args, context) => {
+      resolve: pipe(
+        authDecorator({ auth: 'admin' }),
+        authDecorator({ auth: 'user' })
+      )((parent, args) => {
         const offset = args.pagination.offset ?? 0
         return {
           totalCount: parent.cosmonauts?.items?.length ?? 0,
           items: parent.cosmonauts?.items?.slice(offset, offset + args.pagination.limit),
         }
-      },
+      }),
     },
   }
 )
 
 // ## schema
 
+const currentRocketQuery = () =>
+  graphqlSubQueryType(
+    {
+      currentRocket: {
+        type: RocketType,
+      },
+    },
+    {
+      currentRocket: {
+        resolve: () => {
+          return gqlAppData
+        },
+      },
+    }
+  )
+
 const schema = new GraphQLSchema({
   query: new GraphQLObjectType({
     name: 'RootQueryType',
     // @ts-ignore
     fields: () => ({
-      currentRocket: {
-        type: RocketType,
-        resolve() {
-          return gqlAppData
-        },
-      },
+      ...currentRocketQuery(),
     }),
   }),
   mutation: new GraphQLObjectType({

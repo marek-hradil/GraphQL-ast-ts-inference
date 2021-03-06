@@ -4,7 +4,7 @@ import {
   graphQLList,
   graphQLNonNull,
   graphQLObjectType,
-} from './typedGqlTypes'
+} from './libs/gqlLib/typedGqlTypes'
 
 export const listPaginationArgs = (name: string) =>
   graphQLNonNull(
@@ -25,7 +25,7 @@ export const wrapPaginationList = <T>(name: string, type: T) =>
   graphQLObjectType({
     name: `connection_${name}`,
     fields: () => ({
-      totalCount: {
+      count: {
         type: GraphQLInt,
       },
       items: {

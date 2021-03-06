@@ -1,5 +1,6 @@
 import * as bodyParser from 'body-parser'
-import { appConfig } from './config'
+import { appEnvs } from './appEnvs'
+import { dbConnection } from './database/dbCore'
 import { graphqlHTTP } from 'express-graphql'
 import express from 'express'
 import graphqlPlayground from 'graphql-playground-middleware-express'
@@ -15,7 +16,10 @@ process.on('unhandledRejection', err => {
 })
 
 const startServer = async () => {
-  const port = appConfig.PORT
+  // wait till the app is connected into database
+  await dbConnection
+
+  const port = appEnvs.PORT
   app.use(bodyParser.json())
   app.use(bodyParser.text({ type: 'application/graphql' }))
 
@@ -37,7 +41,7 @@ const startServer = async () => {
   app.listen(port)
 
   app.get('*', (req, res) => {
-    res.send(`<h1>${Array.from({ length: 1000 }, () => ' 🤷‍♀️ ').join('404')}</h1>`)
+    res.send(`<h1>404</h1>`)
   })
 
   console.info(`
@@ -51,7 +55,7 @@ const startServer = async () => {
 const stopServer = async (server: any) => {
   // TODO: TypeError: Cannot read property 'close' of undefined
   server.close()
-  if (appConfig.ENVIRONMENT !== 'production') {
+  if (appEnvs.ENVIRONMENT !== 'production') {
     console.info('----------- server stopped ------------')
   }
 }

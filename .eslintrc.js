@@ -34,7 +34,7 @@ module.exports = {
     'max-len': ['warn', { code: 100, ignoreComments: true }],
     'new-parens': 'error',
     'no-bitwise': 'error',
-    'no-console': ['warn', { allow: ['warn', 'info', 'error'] }],
+    'no-console': ['warn', { allow: ['time', 'timeEnd', 'warn', 'info', 'error'] }],
     'no-caller': 'error',
     'no-multiple-empty-lines': ['error', { max: 2, maxEOF: 1, maxBOF: 0 }],
     'object-literal-key-quotes': 0,

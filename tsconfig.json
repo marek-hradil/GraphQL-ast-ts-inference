@@ -12,6 +12,8 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": false,
+    "emitDecoratorMetadata": true,
+    "strictPropertyInitialization": false,
     "experimentalDecorators": true,
     "noEmit": true,
     "jsx": "preserve",
@@ -23,5 +25,8 @@
     "noUnusedParameters": false,
     "noUnusedLocals": false
   },
-  "include": ["src/**/*.ts"]
+  "include": [
+    "./index.d.ts",
+    "**/*.ts"
+  ]
 }

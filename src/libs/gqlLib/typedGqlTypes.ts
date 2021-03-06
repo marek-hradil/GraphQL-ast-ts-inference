@@ -47,7 +47,8 @@ export const graphqlSubQueryType = <Fields extends Record<string, { type: any; a
           [ArgKey in keyof Fields[FieldKey]['args']]: Fields[FieldKey]['args'][ArgKey]['type']
         },
         context: any
-      ) => MaybePromise<Fields[FieldKey]['type']>
+      ) => MaybePromise<any>
+      // ) => MaybePromise<Fields[FieldKey]['type']>
     }
   }
 ) => {
@@ -63,7 +64,8 @@ export const graphqlSubQueryType = <Fields extends Record<string, { type: any; a
   return fieldsWithResolvers as any
 }
 
-type HackToOmitFnCircularDepType<T> = T extends (...args: any[]) => any ? any : T
+// TODO: check validity of this type
+// type HackToOmitFnCircularDepType<T> = T extends (...args: any[]) => any ? any : T
 
 export const graphQLObjectType = <Fields extends Record<string, { type: any; args?: any }>>(
   gqlShape: {
@@ -84,7 +86,8 @@ export const graphQLObjectType = <Fields extends Record<string, { type: any; arg
           >
         },
         context: any
-      ) => MaybePromise<HackToOmitFnCircularDepType<Fields[FieldKey]['type']>>
+      ) => MaybePromise<any>
+      // ) => MaybePromise<HackToOmitFnCircularDepType<Fields[FieldKey]['type']>>
     }
   },
   opts?: { globalResolverDecorator?: (...args: any[]) => any }
@@ -150,7 +153,8 @@ export const gqlMutation = <
   resolve: (
     args: { [ArgKey in keyof Config['args']]: Config['args'][ArgKey]['type'] },
     context: any
-  ) => Config['type']
+  ) => Promise<any>
+  // ) => Promise<Config['type']>
 ) => {
   return {
     ...config,
